@@ -5,9 +5,9 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description='PyTorch TreeLSTM for Sentence Similarity on Dependency Trees')
     # data arguments
-    parser.add_argument('--data', default='data/sick/',
+    parser.add_argument('--data', default='/Users/akhil/git-repos/forked-repos/treelstm.pytorch/data/coco',
                         help='path to dataset')
-    parser.add_argument('--glove', default='data/glove/',
+    parser.add_argument('--glove', default='/Users/akhil/git-repos/forked-repos/treelstm.pytorch/data/glove',
                         help='directory with GLOVE embeddings')
     parser.add_argument('--save', default='checkpoints/',
                         help='directory to save checkpoints in')
@@ -18,10 +18,8 @@ def parse_args():
                         help='Size of input word vector')
     parser.add_argument('--mem_dim', default=150, type=int,
                         help='Size of TreeLSTM cell state')
-    parser.add_argument('--hidden_dim', default=50, type=int,
-                        help='Size of classifier MLP')
-    parser.add_argument('--num_classes', default=5, type=int,
-                        help='Number of classes in dataset')
+    parser.add_argument('--image_features_dim', default=4096, type=int,
+                        help='Size of image features extracted from pretrained VGG model')
     parser.add_argument('--freeze_embed', action='store_true',
                         help='Freeze word embeddings')
     # training arguments

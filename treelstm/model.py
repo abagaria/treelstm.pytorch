@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import pdb
+
 from . import Constants
 
 
@@ -47,41 +49,43 @@ class ChildSumTreeLSTM(nn.Module):
         tree.state = self.node_forward(inputs[tree.idx], child_c, child_h)
         return tree.state
 
-
-# module for distance-angle similarity
-class Similarity(nn.Module):
-    def __init__(self, mem_dim, hidden_dim, num_classes):
-        super(Similarity, self).__init__()
-        self.mem_dim = mem_dim
-        self.hidden_dim = hidden_dim
-        self.num_classes = num_classes
-        self.wh = nn.Linear(2 * self.mem_dim, self.hidden_dim)
-        self.wp = nn.Linear(self.hidden_dim, self.num_classes)
-
-    def forward(self, lvec, rvec):
-        mult_dist = torch.mul(lvec, rvec)
-        abs_dist = torch.abs(torch.add(lvec, -rvec))
-        vec_dist = torch.cat((mult_dist, abs_dist), 1)
-
-        out = F.sigmoid(self.wh(vec_dist))
-        out = F.log_softmax(self.wp(out), dim=1)
-        return out
-
-
-# putting the whole model together
 class SimilarityTreeLSTM(nn.Module):
-    def __init__(self, vocab_size, in_dim, mem_dim, hidden_dim, num_classes, sparsity, freeze):
+    def __init__(self, vocab_size, in_dim, mem_dim, image_feature_dim, sparsity, freeze):
+        """
+        Overall multi-modal model that projects the extracted features from the image to the same vector space
+        as the sentence embeddings from our tree-lstm module. Forward pass returns the loss (similarity) between
+        an image and a sentence.
+        Args:
+            vocab_size (int)
+            in_dim (int)
+            mem_dim (int)
+            image_feature_dim (int)
+            sparsity (bool)
+            freeze (bool)
+        """
         super(SimilarityTreeLSTM, self).__init__()
         self.emb = nn.Embedding(vocab_size, in_dim, padding_idx=Constants.PAD, sparse=sparsity)
         if freeze:
             self.emb.weight.requires_grad = False
-        self.childsumtreelstm = ChildSumTreeLSTM(in_dim, mem_dim)
-        self.similarity = Similarity(mem_dim, hidden_dim, num_classes)
+        self.child_sum_tree_lstm = ChildSumTreeLSTM(in_dim, mem_dim)
+        self.image_projection_layer = nn.Linear(image_feature_dim, mem_dim)
 
-    def forward(self, ltree, linputs, rtree, rinputs):
-        linputs = self.emb(linputs)
-        rinputs = self.emb(rinputs)
-        lstate, lhidden = self.childsumtreelstm(ltree, linputs)
-        rstate, rhidden = self.childsumtreelstm(rtree, rinputs)
-        output = self.similarity(lstate, rstate)
-        return output
+    def forward(self, sentence, parse_tree, image_features):
+        """
+        Args:
+            sentence (torch.tensor): sequence of words represented by their word-ids (obtained from vocab)
+            parse_tree (Tree)
+            image_features (torch.tensor): extracted features from a pre-trained CNN like VGG19 (usually 1x4096)
+
+        Returns:
+            state (torch.tensor): Sentence embedding `y_i = TreeLSTM(x_i)`, usually 1x50
+            projected_image (torch.tensor): image embedding `z_i = W * VGG(img_i)`, same dimensions as state
+        """
+        sentence_embeddings = self.emb(sentence)
+        state, hidden = self.child_sum_tree_lstm(parse_tree, sentence_embeddings)
+        try:
+            projected_image = self.image_projection_layer(image_features)
+        except RuntimeError:
+            pdb.set_trace()
+        assert state.shape == projected_image.shape, "Image and sentence embeddings should be in the same vector space."
+        return state, projected_image

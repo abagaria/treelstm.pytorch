@@ -23,6 +23,7 @@ def dependency_parse(filepath, cp='', tokenize=True):
     tokenize_flag = '-tokenize - ' if tokenize else ''
     cmd = ('java -cp %s DependencyParse -tokpath %s -parentpath %s -relpath %s %s < %s'
            % (cp, tokpath, parentpath, relpath, tokenize_flag, filepath))
+    print("Executing - ", cmd)
     os.system(cmd)
 
 
